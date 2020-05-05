@@ -1,15 +1,21 @@
 package org.ics.isl.partitioner
 
+import org.apache.spark.graphx.Graph
 import org.apache.spark.sql.SparkSession
+import org.ics.isl.partitioner.InstanceGraph.{IE, IV}
 
 object PartitionerMain {
 
   def main(args: Array[String]): Unit = {
     implicit val spark: SparkSession = createSparkSession()
-    spark.sparkContext.setLogLevel("ERROR")
 
     val arguments = ArgumentParser.init().parse(args, ArgumentParser.Arguments())
+
     val hdfsBasePath = buildWorkingHdfsPath(arguments)
+    val localBasePath = buildWorkingLocalPath(arguments)
+
+    spark.sparkContext.setLogLevel("ERROR")
+    spark.sparkContext.setCheckpointDir(hdfsBasePath + "checkpoint") // needed for BC library
 
     printArguments(arguments)
 
@@ -17,9 +23,11 @@ object PartitionerMain {
 
     val schemaGraph = SchemaGraph.loadGraph(hdfsBasePath)
 
-    InstanceGraph.generateGraph(arguments.get.instancesPath, hdfsBasePath)
+    InstanceGraph.generateGraph(arguments.get.instancesPath)
 
-    val instanceGraph = InstanceGraph.loadGraph(hdfsBasePath)
+    val instanceGraph: Graph[IV, IE] = InstanceGraph.loadGraph(hdfsBasePath)
+
+    GraphMetricsUtils.computeGraphMetrics(schemaGraph, instanceGraph, hdfsBasePath, localBasePath)
 
     spark.stop()
   }
@@ -38,6 +46,19 @@ object PartitionerMain {
       arguments.get.numPartitions + "/"
   }
 
+  /**
+   * Creates the base path in HDFS that the application will work
+   * @param arguments
+   * @return
+   */
+  def buildWorkingLocalPath(arguments:Option[ArgumentParser.Arguments]): String = {
+    val mode = if(arguments.getOrElse() == 0) "lap" else "blap"
+
+    "lawa_local/" +
+      arguments.get.datasetName + "/" +
+      mode + "/" +
+      arguments.get.numPartitions + "/"
+  }
 
   /**
    * Prints applications input arguments

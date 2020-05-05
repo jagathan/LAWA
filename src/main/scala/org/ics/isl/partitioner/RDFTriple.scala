@@ -8,7 +8,6 @@ object RDFTriple {
   case class Triple(s: String, p: String, o: String)
 
   private final val TRIPLE_SIZE = 3
-
   private final val TRIPLE_DELIM = "\\s+"
 
   /**
@@ -43,14 +42,20 @@ object RDFTriple {
    * Builds a case class Triple from the given String
    */
   private val buildTriple: String => Option[Triple] = t => {
-    val a: Array[String] = t.split(TRIPLE_DELIM, TRIPLE_SIZE)
-      .map(_.dropRight(1)) // remove trailing "."
-      .map(e => toUri(e.trim)) // trim for spaces and check for <>
+    val s = rTrimDot(t).trim // remove trailing "." and trim spaces again
+    val a: Array[String] = s
+      .split(TRIPLE_DELIM, TRIPLE_SIZE)
+      .map(s => toUri(s.trim)) // trim for spaces and check for <>
     a.length match {
       case TRIPLE_SIZE => Option(Triple(a(0), a(1), a(2)))
       case _ => None // if not proper triple -> None
     }
   }
+
+
+  // Trim for spaces and remove trailing "."
+  private val rTrimDot: String => String = _.trim.replaceAll("\\.$", "")
+
 
   /**
    * Formats URI with prefix and suffix <>

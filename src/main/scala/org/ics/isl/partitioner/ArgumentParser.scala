@@ -53,7 +53,6 @@ object ArgumentParser {
         .action((x, c) => c.copy(schemaPath = x))
         .text("schemaPath is a required file property")
         .text("hdfs path of rdf schema")
-
     }
   }
 
