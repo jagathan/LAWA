@@ -12,41 +12,9 @@ object SchemaGraph {
   case class SV(uri: String)
   case class SE(uri: String, weight: Double)
 
+  final val SCHEMA_VERTICES = "schema_vertices"
+  final val SCHEMA_EDGES = "schema_edges"
 
-  /**
-   * Generates schema Graph from the given path of triples
-   *
-   * @param triplesPath HDFS path of schema triples
-   * @param hdfsBasePath the HDFS base path (working dir)
-   * @param spark implicit param SparkSession
-   * @return
-   */
-  def generateGraph(triplesPath: String, hdfsBasePath: String)
-                   (implicit spark: SparkSession): Unit = {
-    import spark.implicits._
-    val schemaDs = RDFTriple.loadTriplesDs(triplesPath)
-
-    // !RDD used for GraphX compatibility!
-
-    // Dataset of all distinct vertex
-    val vertexDs = schemaDs.flatMap{t => Seq(t.s, t.o)}.distinct
-    // Transform to rdd and zip vertex with ID
-    val vertexRdd = vertexDs.rdd.zipWithIndex.cache
-
-    val vertexMap = vertexRdd.collectAsMap
-    // broadcast map of vertex for performance
-    val brVertexMap = spark.sparkContext.broadcast(vertexMap)
-
-    // Build RDD[Edge]
-    val schemaEdgeDs = schemaDs
-      .map(t => SchemaEdge(brVertexMap.value(t.s), brVertexMap.value(t.o), (t.p, 0.0)))
-      .distinct // TODO remove?
-
-    val schemaVertexDs = vertexRdd.map{case(uri, id) => SchemaVertex(id, uri)}.toDS
-
-    HdfsUtils.writeDs(schemaEdgeDs, hdfsBasePath + Constants.SCHEMA_EDGES)
-    HdfsUtils.writeDs(schemaVertexDs, hdfsBasePath + Constants.SCHEMA_VERTICES)
-  }
 
   def generateGraph(triplesPath: String)
                    (implicit spark: SparkSession): Graph[SV, SE] = {
@@ -86,8 +54,8 @@ object SchemaGraph {
     val vertexDs = g.vertices.map(v => SchemaVertex(v._1, v._2.uri)).toDS
     val edgeDs = g.edges.map(e => SchemaEdge(e.srcId, e.dstId, (e.attr.uri, e.attr.weight))).toDS
 
-    HdfsUtils.writeDs(edgeDs, hdfsBasePath + Constants.SCHEMA_EDGES)
-    HdfsUtils.writeDs(vertexDs, hdfsBasePath + Constants.SCHEMA_VERTICES)
+    HdfsUtils.writeDs(edgeDs, hdfsBasePath + SCHEMA_EDGES)
+    HdfsUtils.writeDs(vertexDs, hdfsBasePath + SCHEMA_VERTICES)
   }
 
 
@@ -101,9 +69,9 @@ object SchemaGraph {
   def loadGraph(hdfsBasePath: String)(implicit spark: SparkSession): Graph[SV, SE] = {
     import spark.implicits._
 
-    val vertexDs = HdfsUtils.loadDf(hdfsBasePath + Constants.SCHEMA_VERTICES)
+    val vertexDs = HdfsUtils.loadDf(hdfsBasePath + SCHEMA_VERTICES)
       .as[SchemaVertex]
-    val edgeDs = HdfsUtils.loadDf(hdfsBasePath + Constants.SCHEMA_EDGES)
+    val edgeDs = HdfsUtils.loadDf(hdfsBasePath + SCHEMA_EDGES)
       .as[SchemaEdge]
 
     // Transform to RDD for GraphX

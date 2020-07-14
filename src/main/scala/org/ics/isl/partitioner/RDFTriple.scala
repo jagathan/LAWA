@@ -1,11 +1,14 @@
 package org.ics.isl.partitioner
 
+import org.apache.spark.graphx.VertexId
 import org.apache.spark.sql.{Dataset, Row, SparkSession}
+
 import scala.util.{Failure, Success, Try}
 
 object RDFTriple {
 
   case class Triple(s: String, p: String, o: String)
+  case class PTriple(srcId: VertexId, dstId: VertexId, e: String)
 
   private final val TRIPLE_SIZE = 3
   private final val TRIPLE_DELIM = "\\s+"

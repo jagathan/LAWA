@@ -5,7 +5,10 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{Dataset, SparkSession}
 
 object InstanceGraph {
-
+  
+  final val INSTANCE_VERTICES = "instance_vertices"
+  final val INSTANCE_EDGES = "instance_edges"
+  
   /**
    *
    * @param id   ID of Vertex
@@ -116,8 +119,8 @@ object InstanceGraph {
     val vertexDs = g.vertices.map(v => InstanceVertex(v._1, v._2.uri, v._2.types, v._2.literals)).toDS
     val edgeDs = g.edges.map(e => InstanceEdge(e.srcId, e.dstId, e.attr.uri)).toDS
 
-    HdfsUtils.writeDs(edgeDs, hdfsBasePath + Constants.INSTANCE_EDGES)
-    HdfsUtils.writeDs(vertexDs, hdfsBasePath + Constants.INSTANCE_VERTICES)
+    HdfsUtils.writeDs(edgeDs, hdfsBasePath + INSTANCE_EDGES)
+    HdfsUtils.writeDs(vertexDs, hdfsBasePath + INSTANCE_VERTICES)
   }
 
 
@@ -131,9 +134,9 @@ object InstanceGraph {
   def loadGraph(hdfsBasePath: String)(implicit spark: SparkSession): Graph[IV, IE] = {
     import spark.implicits._
 
-    val vertexDs = HdfsUtils.loadDf(hdfsBasePath + Constants.INSTANCE_VERTICES)
+    val vertexDs = HdfsUtils.loadDf(hdfsBasePath + INSTANCE_VERTICES)
       .as[InstanceVertex]
-    val edgeDs = HdfsUtils.loadDf(hdfsBasePath + Constants.INSTANCE_EDGES)
+    val edgeDs = HdfsUtils.loadDf(hdfsBasePath + INSTANCE_EDGES)
       .as[InstanceEdge]
 
     // Transform to RDD for GraphX

@@ -1,8 +1,11 @@
 package org.ics.isl.partitioner
 
-import org.apache.spark.graphx.Graph
+import org.apache.spark.graphx.{Graph, VertexId}
 import org.apache.spark.sql.SparkSession
 import org.ics.isl.partitioner.InstanceGraph.{IE, IV}
+import org.ics.isl.partitioner.SchemaGraph.{SE, SV}
+
+import scala.collection.Map
 
 object PartitionerMain {
 
@@ -19,15 +22,41 @@ object PartitionerMain {
 
     printArguments(arguments)
 
-    SchemaGraph.generateGraph(arguments.get.schemaPath, hdfsBasePath)
 
-    val schemaGraph = SchemaGraph.loadGraph(hdfsBasePath)
+    val schemaGraph: Graph[SV, SE] = SchemaGraph.generateGraph(arguments.get.schemaPath)
 
-    InstanceGraph.generateGraph(arguments.get.instancesPath)
-
-    val instanceGraph: Graph[IV, IE] = InstanceGraph.loadGraph(hdfsBasePath)
+    val instanceGraph: Graph[IV, IE] = InstanceGraph.generateGraph(arguments.get.instancesPath)
 
     GraphMetricsUtils.computeGraphMetrics(schemaGraph, instanceGraph, hdfsBasePath, localBasePath)
+
+    val schemaVertexIdMap = schemaGraph.vertices.map{case(id, v) => (v.uri, id)}.collectAsMap
+    val importanceMap = GraphMetricsUtils.loadNodeImportance(localBasePath)
+    val ccDs = GraphMetricsUtils.loadCC(hdfsBasePath)
+    // load schemaNodeCount and map the uri to its ID
+    val schemaNodeCount = GraphMetricsUtils.loadSchemaNodeCount(localBasePath)
+      .flatMap{case(uri, c) =>
+        if(schemaVertexIdMap.contains(uri))
+          Option((schemaVertexIdMap(uri), c))
+        else None
+      }
+
+    val partitioner: LAWAPartitioner = if(arguments.get.partitionerMode == 1) BLAP else LAP
+
+    val schemaGraphPartitions: Map[VertexId, Array[RDFTriple.Triple]] =
+      partitioner.partitionSchemaGraph(
+        schemaGraph,
+        ccDs,
+        importanceMap,
+        schemaNodeCount,
+        instanceGraph.numEdges,
+        arguments.get.numPartitions)
+
+    val classIndex: Map[String, Seq[VertexId]] = Index.generateClassIndex(schemaGraphPartitions)
+
+    val partitionedInstances = partitioner.partitionInstances(instanceGraph, classIndex)
+    partitioner.storePartitions(partitionedInstances, hdfsBasePath, arguments.get.numPartitions)
+    partitioner.subPartitionClusters(hdfsBasePath)
+    partitioner.computePartitionStats(partitionedInstances, localBasePath)
 
     spark.stop()
   }

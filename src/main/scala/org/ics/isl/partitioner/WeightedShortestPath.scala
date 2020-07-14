@@ -62,8 +62,7 @@ object WeightedShortestPath extends Serializable {
             else Iterator.empty
         }
 
-        Pregel(spGraph, initialMessage, Int.MaxValue, EdgeDirection.Either)
-        (vertexProgram _, sendMessage _, addMaps _)
+        Pregel(spGraph, initialMessage, Int.MaxValue, EdgeDirection.Either)(vertexProgram _, sendMessage _, addMaps _)
     }
 
     def getFirst(x: Option[Any]): Double = x match {
